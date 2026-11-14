@@ -40,6 +40,8 @@ Discogs has the best vinyl data, down to the individual pressing. Create a perso
    | `NEXT_PUBLIC_CURRENCY` | Currency for prices paid, e.g. `USD`, `GBP`, `EUR` (optional, defaults to USD) |
 
 3. Deploy. Open the site, enter your email, and click the link that arrives.
+
+   Supabase's built-in email only sends a few messages an hour. To skip email, create a password for yourself in Supabase under **Authentication → Users → Add user → Create new user** (tick **Auto Confirm User**), then choose **Sign in with a password instead** on the sign-in page. If the user already exists, open it and use **Send password recovery** or set the password there.
 4. Once you've signed in the first time, you can turn off **Authentication → Providers → Email → Allow new users to sign up** in Supabase for extra safety. `ALLOWED_EMAILS` already blocks anyone else.
 
 The camera only works over HTTPS, which Vercel provides.
