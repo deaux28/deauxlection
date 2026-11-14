@@ -349,3 +349,4 @@ footer.foot a { color: var(--muted); }
 .notes-list .acts2 .del.armed { color: var(--danger); font-weight: 650; }
 .spent { font-family: var(--f-mono); font-size: 12px; letter-spacing: .04em; color: var(--muted); }
 .sec-head .dek.spent { max-width: none; margin-top: -8px; }
+.login-form .form-err, .login-card .form-err, .lookup .form-err, .journal .form-err { grid-column: auto; }
