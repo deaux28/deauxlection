@@ -4,6 +4,8 @@ import { GRADES, GRADE_NAMES, KINDS, str, tagsOf, type Field } from "@/lib/kinds
 import { sleeveArt, cloth } from "@/lib/art";
 import type { Details, Item, Kind, Track } from "@/lib/types";
 import { BookCover, Cover, Disc, Tracklist } from "./art";
+import { Journal } from "./journal";
+import { currencySymbol, day, money, today } from "@/lib/format";
 import { Lookup } from "./lookup";
 import { useStore, type CoverSource } from "./store";
 
@@ -91,7 +93,7 @@ function ViewPane({ item }: { item: Item }) {
             <button className="btn sm" onClick={() => editItem(item.id)}>Find tracks and cover</button>
           </div>
         )}
-        <Facts pairs={[["Label", item.label], ["Catalog no.", item.catno], ["Year", item.year], ["Country", item.country], ["Genre", item.genre], ["Format", item.format], ["Size · speed", [item.size, item.speed].filter(Boolean).join(" · ")], ["Pressing", item.pressing], ["Barcode", item.barcode]]} />
+        <Facts pairs={[["Label", item.label], ["Catalog no.", item.catno], ["Year", item.year], ["Country", item.country], ["Genre", item.genre], ["Format", item.format], ["Size · speed", [item.size, item.speed].filter(Boolean).join(" · ")], ["Pressing", item.pressing], ["Barcode", item.barcode], ["Acquired", item.acquired ? day(item.acquired) : ""], ["Price paid", money(item.price)]]} />
         <div className="gauges"><Gauge label="Record" grade={str(item.media) || undefined} /><Gauge label="Sleeve" grade={str(item.sleeve) || undefined} /></div>
         {item.notes ? <p className="notes">{str(item.notes)}</p> : null}
       </>
@@ -111,8 +113,9 @@ function ViewPane({ item }: { item: Item }) {
           <div className="lbl-row mono"><span>Your rating</span>{r > 0 && <button type="button" className="linkish mono" onClick={() => patch(item.id, { rating: null })}>Clear</button>}</div>
           <div className="stars">{[1, 2, 3, 4, 5].map((n) => <button key={n} type="button" className={n <= r ? "on" : ""} aria-label={`${n} star${n > 1 ? "s" : ""}`} onClick={() => patch(item.id, { rating: n })}>★</button>)}</div>
         </div>
-        <Facts pairs={[["Published", item.year], ["Publisher", item.publisher], ["Format", item.format], ["Pages", item.pages], ["ISBN", item.isbn]]} />
+        <Facts pairs={[["Published", item.year], ["Publisher", item.publisher], ["Format", item.format], ["Pages", item.pages], ["ISBN", item.isbn], ["Acquired", item.acquired ? day(item.acquired) : ""]]} />
         {item.notes ? <p className="notes">{str(item.notes)}</p> : null}
+        <Journal item={item} />
         <div className="from-book">
           <div className="lbl-row mono"><span>Quotes from this book · {qs.length}</span><button type="button" className="btn sm" onClick={() => openNew("quote", { bookId: item.id, by: item.author })}>Add a quote</button></div>
           {qs.map((q) => <button key={q.id} type="button" onClick={() => openItem(q.id)}><blockquote>{str(q.text)}{q.page ? <span className="mono" style={{ color: "var(--muted)" }}> p. {str(q.page)}</span> : null}</blockquote></button>)}
@@ -169,6 +172,17 @@ function FieldInput({ f, value, onChange }: { f: Field; value: string; onChange:
       {books.map((b) => <option key={b.id} value={b.id}>{str(b.title)} — {str(b.author)}</option>)}
     </select>{hint}</div>;
   }
+  if (f.type === "date") {
+    return <div className={cls}>{label}<div style={{ display: "flex", gap: 6 }}>
+      <input id={id} type="date" value={value} max={today()} onChange={(e) => onChange(e.target.value)} style={{ flex: 1 }} />
+      {!value && <button type="button" className="btn sm" style={{ alignSelf: "center" }} onClick={() => onChange(today())}>Today</button>}
+    </div>{hint}</div>;
+  }
+  if (f.type === "money") {
+    return <div className={cls}>{label}<div className="money"><span aria-hidden="true">{currencySymbol()}</span>
+      <input id={id} type="number" inputMode="decimal" step="0.01" min="0" value={value} placeholder={f.placeholder} onChange={(e) => onChange(e.target.value)} />
+    </div>{hint}</div>;
+  }
   if (f.type === "textarea") {
     return <div className={cls}>{label}<textarea id={id} className={f.big ? "big" : ""} value={value} placeholder={f.placeholder} onChange={(e) => onChange(e.target.value)} />{hint}</div>;
   }
@@ -204,7 +218,7 @@ function EditPane({ kind, item, prefill }: { kind: Kind; item?: Item; prefill?: 
   const K = KINDS[kind];
   const init = useMemo(() => {
     const src: Record<string, unknown> = item ?? prefill ?? {};
-    return Object.fromEntries(Object.entries(src).filter(([k, v]) => !META.has(k) && v !== undefined && v !== null).map(([k, v]) => [k, str(v)]));
+    return Object.fromEntries(Object.entries(src).filter(([k, v]) => !META.has(k) && (typeof v === "string" || typeof v === "number")).map(([k, v]) => [k, str(v)]));
   }, [item, prefill]);
   const [values, setValues] = useState<Record<string, string>>(init);
   const [tracks, setTracks] = useState<Track[]>(item?.tracks ?? []);
@@ -235,9 +249,12 @@ function EditPane({ kind, item, prefill }: { kind: Kind; item?: Item; prefill?: 
       const def = K.fields.find((f) => f.k === k);
       const t = v.trim();
       if (!t) continue;
-      fields[k] = def?.type === "number" && !isNaN(Number(t)) ? Number(t) : t;
+      fields[k] = (def?.type === "number" || def?.type === "money") && !isNaN(Number(t)) ? Number(t) : t;
     }
-    if (item?.rating) fields.rating = item.rating;
+    // Keep data the form doesn't edit (rating, reading journal, source ids).
+    if (item) for (const [k, v] of Object.entries(item)) {
+      if (!META.has(k) && !K.fields.some((f) => f.k === k) && !(k in fields) && v !== undefined && v !== null && typeof v !== "string") fields[k] = v;
+    }
     const missing = K.fields.filter((f) => f.req && !fields[f.k]).map((f) => f.label.toLowerCase());
     if (missing.length) { setErr(`Add the ${missing.join(" and ")} to save.`); return; }
     const cleanTracks = tracks.filter((t) => t.title.trim()).map((t) => ({ position: t.position.trim(), title: t.title.trim(), ...(t.duration?.trim() ? { duration: t.duration.trim() } : {}) }));

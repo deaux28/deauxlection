@@ -5,8 +5,9 @@ import { KINDS, ORDER, creatorOf, str, tagsOf, titleOf } from "@/lib/kinds";
 import type { Item, Kind } from "@/lib/types";
 import { Cover, Disc, QuoteCard, RecordCard, Spine } from "./art";
 import { useStore } from "./store";
+import { money } from "@/lib/format";
 
-type Sort = "recent" | "title" | "creator" | "year-new" | "year-old";
+type Sort = "recent" | "title" | "creator" | "year-new" | "year-old" | "acquired";
 const cmp = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: "base" });
 function sortItems(list: Item[], s: Sort) {
   const by: Record<Sort, (a: Item, b: Item) => number> = {
@@ -15,6 +16,7 @@ function sortItems(list: Item[], s: Sort) {
     creator: (a, b) => cmp(creatorOf(a), creatorOf(b)) || cmp(titleOf(a), titleOf(b)),
     "year-new": (a, b) => (Number(b.year) || -1e9) - (Number(a.year) || -1e9),
     "year-old": (a, b) => (Number(a.year) || 1e9) - (Number(b.year) || 1e9),
+    acquired: (a, b) => str(b.acquired || "0000").localeCompare(str(a.acquired || "0000")) || b.createdAt.localeCompare(a.createdAt),
   };
   return list.slice().sort(by[s]);
 }
@@ -147,10 +149,16 @@ export function Collection({ kind }: { kind: Kind }) {
           <button className="btn sm" onClick={() => openNew(kind)}>Add {K.one}</button>
           <select className="sort" id={`sort-${kind}`} aria-label="Sort" value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
             <option value="recent">Recently added</option><option value="title">Title A–Z</option><option value="creator">{creatorLabel}</option>
-            {kind !== "quote" && <><option value="year-new">Newest first</option><option value="year-old">Oldest first</option></>}
+            {kind !== "quote" && <><option value="acquired">Date acquired</option><option value="year-new">Newest release</option><option value="year-old">Oldest release</option></>}
           </select>
         </div>
         <p className="dek">{dek}</p>
+        {kind === "vinyl" && (() => {
+          const priced = all.filter((r) => r.price !== undefined && r.price !== "" && !isNaN(Number(r.price)));
+          if (!priced.length) return null;
+          const total = priced.reduce((s, r) => s + Number(r.price), 0);
+          return <p className="dek spent">Paid {money(total)} across {priced.length} of {all.length} records{priced.length > 1 ? ` · average ${money(total / priced.length)}` : ""}</p>;
+        })()}
       </div>
       {filters && <div style={{ marginBottom: 30 }}>{filters}</div>}
       {!all.length ? <Empty kind={kind} />
@@ -164,7 +172,8 @@ export function Collection({ kind }: { kind: Kind }) {
 
 function matches(it: Item, q: string, byId: (id: string) => Item | undefined) {
   const hay = Object.entries(it).filter(([k]) => !["id", "createdAt", "updatedAt", "coverPath", "coverUrl", "kind"].includes(k))
-    .map(([k, v]) => (k === "tracks" && Array.isArray(v) ? v.map((t: { title: string }) => t.title).join(" ") : typeof v === "string" || typeof v === "number" ? String(v) : ""))
+    .map(([k, v]) => (k === "tracks" && Array.isArray(v) ? v.map((t: { title: string }) => t.title).join(" ")
+      : k === "journal" && Array.isArray(v) ? v.map((n: { text?: string }) => n.text ?? "").join(" ") : typeof v === "string" || typeof v === "number" ? String(v) : ""))
     .join(" ").toLowerCase();
   const book = it.bookId ? byId(str(it.bookId)) : undefined;
   return hay.includes(q) || (!!book && str(book.title).toLowerCase().includes(q));

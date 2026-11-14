@@ -8,7 +8,7 @@ export const GRADE_NAMES: Record<string, string> = {
 export type Field = {
   k: string;
   label: string;
-  type?: "text" | "number" | "select" | "textarea" | "bookref";
+  type?: "text" | "number" | "select" | "textarea" | "bookref" | "date" | "money";
   options?: readonly string[];
   labels?: Record<string, string>;
   empty?: string;
@@ -37,6 +37,8 @@ export const KINDS: Record<Kind, KindDef> = {
       { k: "size", label: "Size", type: "select", options: ['12"', '10"', '7"'], half: true },
       { k: "speed", label: "Speed", type: "select", options: ["33⅓ RPM", "45 RPM", "78 RPM"], half: true },
       { k: "pressing", label: "Pressing", half: true, placeholder: "2015 reissue, 180g" },
+      { k: "acquired", label: "Date acquired", type: "date", half: true },
+      { k: "price", label: "Price paid", type: "money", half: true, placeholder: "24.99", hint: "Optional." },
       { k: "media", label: "Record condition", type: "select", options: GRADES, labels: GRADE_NAMES, half: true, empty: "Not graded" },
       { k: "sleeve", label: "Sleeve condition", type: "select", options: GRADES, labels: GRADE_NAMES, half: true, empty: "Not graded" },
       { k: "notes", label: "Notes", type: "textarea", placeholder: "Where you found it, favorite tracks, signatures…" },
@@ -53,7 +55,8 @@ export const KINDS: Record<Kind, KindDef> = {
       { k: "status", label: "Status", type: "select", options: ["To read", "Reading", "Read"], half: true },
       { k: "isbn", label: "ISBN", half: true, placeholder: "978-1-4000-3341-6" },
       { k: "pages", label: "Pages", type: "number", half: true, placeholder: "324", hint: "Sets the width of its spine." },
-      { k: "notes", label: "Notes", type: "textarea", placeholder: "Who lent it to you, what stayed with you…" },
+      { k: "acquired", label: "Date acquired", type: "date", half: true },
+      { k: "notes", label: "About this copy", type: "textarea", placeholder: "Who gave it to you, where you bought it…", hint: "Reading notes go in the journal on the book’s page." },
     ],
   },
   quote: {

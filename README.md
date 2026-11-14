@@ -5,7 +5,9 @@ A personal catalog for vinyl records, books and quotes.
 - **Scan a barcode** with your phone camera. Records are looked up on Discogs and MusicBrainz, and books (ISBN barcodes) on Open Library and Google Books. The original cover, track list, label, catalog number, year and pressing details fill in. You pick your exact copy when a barcode matches several pressings.
 - **No barcode?** Search by the catalog number on the spine or label (e.g. `CS 8163`), or by artist and album.
 - **Covers are copied into your own storage**, so they keep working if the source link changes. You can also add your own photo.
-- Records get a Goldmine condition grade for the record and the sleeve, and a track list grouped by side. Books get reading status, a rating and spines sized by page count. Quotes can be linked to a book on your shelf.
+- Records get a Goldmine condition grade for the record and the sleeve, a track list grouped by side, the date you got it and, optionally, what you paid. The Records page totals what you've spent on the records that have a price.
+- Books get reading status, a rating, the date you got them, spines sized by page count, and a **reading journal**: dated notes with a page number and an optional photo of the page. Any note can be turned into a quote.
+- Quotes can be linked to a book on your shelf.
 
 Built with Next.js 15, Supabase (auth, Postgres, storage) and ZXing for barcode scanning.
 
@@ -35,6 +37,7 @@ Discogs has the best vinyl data, down to the individual pressing. Create a perso
    | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable (or anon) key |
    | `ALLOWED_EMAILS` | The email address(es) allowed to sign in, comma-separated |
    | `DISCOGS_TOKEN` | Your Discogs token (optional) |
+   | `NEXT_PUBLIC_CURRENCY` | Currency for prices paid, e.g. `USD`, `GBP`, `EUR` (optional, defaults to USD) |
 
 3. Deploy. Open the site, enter your email, and click the link that arrives.
 4. Once you've signed in the first time, you can turn off **Authentication → Providers → Email → Allow new users to sign up** in Supabase for extra safety. `ALLOWED_EMAILS` already blocks anyone else.
@@ -49,9 +52,9 @@ npm install
 npm run dev
 ```
 
-## Moving over from the Crate & Shelf page
+## Moving over from the claude.ai version
 
-Open **Add → Import, export, sign out** and import a JSON export. Both this app's own export format and a list of Crate & Shelf documents (objects with a `kind` field) are accepted. Quote-to-book links from the old page need re-picking after import, because item ids change.
+Open **Add → Import, export, sign out** and import a JSON export. Both this app's own export format and a list of documents from the earlier claude.ai version (objects with a `kind` field) are accepted. Quote-to-book links from the old page need re-picking after import, because item ids change.
 
 ## Data sources
 

@@ -27,6 +27,9 @@ type Store = {
   save: (args: { id?: string; kind: Kind; fields: Record<string, unknown>; tracks?: Track[]; cover?: CoverSource }) => Promise<string>;
   patch: (id: string, fields: Record<string, unknown>) => Promise<void>;
   remove: (id: string) => Promise<void>;
+  uploadImage: (file: File, prefix: string) => Promise<string>;
+  publicUrl: (path: string) => string;
+  removeFiles: (paths: string[]) => Promise<void>;
   importItems: (rows: { kind: Kind; data: Record<string, unknown>; created_at?: string }[]) => Promise<number>;
   toast: (msg: string) => void;
   toastMsg: string | null;
@@ -132,7 +135,9 @@ export function StoreProvider({ initial, children }: { initial: ItemRow[]; child
     const row = rows.find((r) => r.id === id);
     const { error } = await sb.from("items").delete().eq("id", id);
     if (error) throw new Error(error.message);
-    if (row?.cover_path) await sb.storage.from(COVERS_BUCKET).remove([row.cover_path]);
+    const journal = (row?.data.journal as { photo?: string }[] | undefined) ?? [];
+    const files = [row?.cover_path, ...journal.map((n) => n.photo)].filter((x): x is string => !!x);
+    if (files.length) await sb.storage.from(COVERS_BUCKET).remove(files);
     setRows((rs) => rs.filter((r) => r.id !== id));
   }, [rows]);
 
@@ -146,6 +151,19 @@ export function StoreProvider({ initial, children }: { initial: ItemRow[]; child
     return data?.length ?? 0;
   }, []);
 
+  const uploadImage: Store["uploadImage"] = useCallback(async (file, prefix) => {
+    const sb = supabaseBrowser();
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) throw new Error("Sign in again to upload.");
+    const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+    const path = `${user.id}/${prefix}-${Date.now()}.${ext}`;
+    const up = await sb.storage.from(COVERS_BUCKET).upload(path, file, { contentType: file.type || "image/jpeg" });
+    if (up.error) throw new Error(up.error.message);
+    return path;
+  }, []);
+  const publicUrl = useCallback((path: string) => supabaseBrowser().storage.from(COVERS_BUCKET).getPublicUrl(path).data.publicUrl, []);
+  const removeFiles = useCallback(async (paths: string[]) => { if (paths.length) await supabaseBrowser().storage.from(COVERS_BUCKET).remove(paths); }, []);
+
   const value: Store = {
     items, cats, q, setQ, sheet, toast, toastMsg,
     byId: (id) => items.find((i) => i.id === id),
@@ -154,7 +172,7 @@ export function StoreProvider({ initial, children }: { initial: ItemRow[]; child
     openNew: (kind, prefill) => setSheet({ mode: "edit", kind, prefill }),
     editItem: (id) => { const it = items.find((i) => i.id === id); if (it) setSheet({ mode: "edit", id, kind: it.kind }); },
     closeSheet: () => setSheet(null),
-    save, patch, remove, importItems,
+    save, patch, remove, importItems, uploadImage, publicUrl, removeFiles,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -5,7 +5,7 @@ import { useStore } from "./store";
 
 type Incoming = { kind: Kind; data: Record<string, unknown>; created_at?: string };
 
-/** Accepts this app's own export, or the Crate & Shelf artifact export (flat docs with a `kind` field). */
+/** Accepts this app's own export, or the earlier claude.ai prototype's documents (flat objects with a `kind` field). */
 function parse(text: string): Incoming[] {
   const raw = JSON.parse(text);
   const list: unknown[] = Array.isArray(raw) ? raw : Array.isArray(raw.items) ? raw.items : [];
@@ -60,7 +60,7 @@ export function Settings() {
         </div>
         <div>
           <h3>Import</h3>
-          <p>Add items from a Deauxlection export or from the Crate &amp; Shelf page.</p>
+          <p>Add items from a Deauxlection export, including one from the earlier claude.ai version.</p>
           <button className="btn" onClick={() => file.current?.click()}>Choose a JSON file</button>
           <input ref={file} type="file" accept="application/json,.json" hidden onChange={(e) => onFile(e.target.files?.[0])} />
           {msg && <p style={{ marginTop: 12, color: "var(--ink)" }}>{msg}</p>}
