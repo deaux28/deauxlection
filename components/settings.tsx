@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Kind } from "@/lib/types";
 import { useStore } from "./store";
 
@@ -24,6 +24,8 @@ export function Settings() {
   const { items, importItems, toast } = useStore();
   const file = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [discogs, setDiscogs] = useState<{ discogs: string; username?: string; detail?: string } | null>(null);
+  useEffect(() => { fetch("/api/status").then((r) => r.json()).then(setDiscogs).catch(() => setDiscogs({ discogs: "unreachable" })); }, []);
 
   const exportJson = () => {
     const rows = items.map(({ id: _id, coverUrl: _c, coverPath: _p, createdAt, updatedAt: _u, kind, ...data }) => ({ kind, data, created_at: createdAt }));
@@ -53,6 +55,16 @@ export function Settings() {
     <section className="wrap page-head">
       <div className="sec-head"><h2>Settings</h2></div>
       <div className="settings">
+        <div>
+          <h3>Record lookups</h3>
+          <p style={{ color: "var(--ink)" }}>
+            {!discogs ? "Checking Discogs…"
+              : discogs.discogs === "ok" ? <>✅ Discogs is connected{discogs.username ? <> as <b>{discogs.username}</b></> : null}. Lookups search Discogs first, then MusicBrainz.</>
+              : discogs.discogs === "missing" ? <>⚠️ Discogs isn&apos;t connected. The site can&apos;t see a <code>DISCOGS_TOKEN</code>, so only MusicBrainz is searched. Add it in Vercel → Settings → Environment Variables (Production), then redeploy.</>
+              : discogs.discogs === "rejected" ? <>⚠️ Discogs rejected the token. Generate a new <b>personal access token</b> at discogs.com/settings/developers (not the Consumer Key/Secret), update <code>DISCOGS_TOKEN</code> in Vercel, then redeploy.</>
+              : <>⚠️ Discogs couldn&apos;t be reached{discogs.detail ? ` (${discogs.detail})` : ""}. Try again in a minute.</>}
+          </p>
+        </div>
         <div>
           <h3>Export</h3>
           <p>Download everything as a JSON file. Covers stay in your storage and aren&apos;t included.</p>
