@@ -65,7 +65,7 @@ function Gauge({ label, grade }: { label: string; grade?: string }) {
 }
 
 function ViewPane({ item }: { item: Item }) {
-  const { cats, editItem, remove, toast, closeSheet, patch, ofKind, openItem, openNew, byId } = useStore();
+  const { cats, editItem, remove, toast, closeSheet, patch, ofKind, openItem, openNew, byId, readOnly, kinds } = useStore();
   const [armed, setArmed] = useState(false);
   const K = KINDS[item.kind];
 
@@ -86,7 +86,7 @@ function ViewPane({ item }: { item: Item }) {
           <h2>{str(item.title)}</h2><div className="by">{str(item.artist)}</div>
           <div className="cat mono"><span>{cats[item.id]}</span>{source && <a href={source.href} target="_blank" rel="noreferrer">View on {source.name} ↗</a>}</div>
         </div>
-        {item.tracks?.length ? <Tracklist tracks={item.tracks} /> : (
+        {item.tracks?.length ? <Tracklist tracks={item.tracks} /> : readOnly ? null : (
           <div className="empty" style={{ paddingTop: 18 }}>
             <h3>No track list yet.</h3>
             <p>Look this record up by barcode or catalog number to add its tracks and original cover.</p>
@@ -105,21 +105,32 @@ function ViewPane({ item }: { item: Item }) {
       <>
         <div className="d-art"><BookCover item={item} /></div>
         <div className="d-title"><h2>{str(item.title)}</h2><div className="by">{str(item.author)}</div><div className="cat mono"><span>{cats[item.id]}</span></div></div>
-        <div>
-          <div className="lbl-row mono"><span>Status</span></div>
-          <div className="seg">{["To read", "Reading", "Read"].map((s) => <button key={s} type="button" aria-pressed={item.status === s} onClick={() => patch(item.id, { status: s })}>{s}</button>)}</div>
-        </div>
-        <div>
-          <div className="lbl-row mono"><span>Your rating</span>{r > 0 && <button type="button" className="linkish mono" onClick={() => patch(item.id, { rating: null })}>Clear</button>}</div>
-          <div className="stars">{[1, 2, 3, 4, 5].map((n) => <button key={n} type="button" className={n <= r ? "on" : ""} aria-label={`${n} star${n > 1 ? "s" : ""}`} onClick={() => patch(item.id, { rating: n })}>★</button>)}</div>
-        </div>
+        {readOnly ? (
+          (item.status || r > 0) ? (
+            <div className="ro-status">
+              {item.status ? <span className="pill-status">{str(item.status)}</span> : null}
+              {r > 0 && <span className="stars ro" aria-label={`Rated ${r} of 5`}>{[1, 2, 3, 4, 5].map((n) => <span key={n} className={n <= r ? "on" : ""}>★</span>)}</span>}
+            </div>
+          ) : null
+        ) : (
+          <>
+            <div>
+              <div className="lbl-row mono"><span>Status</span></div>
+              <div className="seg">{["To read", "Reading", "Read"].map((s) => <button key={s} type="button" aria-pressed={item.status === s} onClick={() => patch(item.id, { status: s })}>{s}</button>)}</div>
+            </div>
+            <div>
+              <div className="lbl-row mono"><span>Your rating</span>{r > 0 && <button type="button" className="linkish mono" onClick={() => patch(item.id, { rating: null })}>Clear</button>}</div>
+              <div className="stars">{[1, 2, 3, 4, 5].map((n) => <button key={n} type="button" className={n <= r ? "on" : ""} aria-label={`${n} star${n > 1 ? "s" : ""}`} onClick={() => patch(item.id, { rating: n })}>★</button>)}</div>
+            </div>
+          </>
+        )}
         <Facts pairs={[["Published", item.year], ["Publisher", item.publisher], ["Format", item.format], ["Pages", item.pages], ["ISBN", item.isbn], ["Acquired", item.acquired ? day(item.acquired) : ""]]} />
-        {item.notes ? <p className="notes">{str(item.notes)}</p> : null}
+        {item.notes ? <div><div className="lbl-row mono"><span>About this copy</span></div><p className="notes">{str(item.notes)}</p></div> : null}
         <Journal item={item} />
-        <div className="from-book">
-          <div className="lbl-row mono"><span>Quotes from this book · {qs.length}</span><button type="button" className="btn sm" onClick={() => openNew("quote", { bookId: item.id, by: item.author })}>Add a quote</button></div>
+        {(!readOnly || (kinds.includes("quote") && qs.length > 0)) && <div className="from-book">
+          <div className="lbl-row mono"><span>Quotes from this book · {qs.length}</span>{!readOnly && <button type="button" className="btn sm" onClick={() => openNew("quote", { bookId: item.id, by: item.author })}>Add a quote</button>}</div>
           {qs.map((q) => <button key={q.id} type="button" onClick={() => openItem(q.id)}><blockquote>{str(q.text)}{q.page ? <span className="mono" style={{ color: "var(--muted)" }}> p. {str(q.page)}</span> : null}</blockquote></button>)}
-        </div>
+        </div>}
       </>
     );
   } else {
@@ -144,10 +155,12 @@ function ViewPane({ item }: { item: Item }) {
     <div className="sheet-in">
       <Top label={K.one} />
       <div className="sheet-body">{body}</div>
-      <div className="sheet-foot">
+      {readOnly ? (
+        <div className="sheet-foot"><div className="r"><button type="button" className="btn" onClick={closeSheet}>Close</button></div></div>
+      ) : <div className="sheet-foot">
         <button type="button" className={`btn danger${armed ? " armed" : ""}`} onClick={del} onBlur={() => setArmed(false)}>{armed ? "Press again to delete" : "Delete"}</button>
         <div className="r"><button type="button" className="btn ink" onClick={() => editItem(item.id)}>Edit</button></div>
-      </div>
+      </div>}
     </div>
   );
 }

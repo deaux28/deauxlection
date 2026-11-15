@@ -8,6 +8,7 @@ A personal catalog for vinyl records, books and quotes.
 - Records get a Goldmine condition grade for the record and the sleeve, a track list grouped by side, the date you got it and, optionally, what you paid. The Records page totals what you've spent on the records that have a price.
 - Books get reading status, a rating, the date you got them, spines sized by page count, and a **reading journal**: dated notes with a page number and an optional photo of the page. Any note can be turned into a quote.
 - Quotes can be linked to a book on your shelf.
+- **Share links** (Settings): a read-only link to your records, books and/or quotes. Visitors can browse and search but can't change anything. Book pages show your notes and reading journal. Prices paid are hidden unless you include them. Switch a link off at any time.
 
 Built with Next.js 15, Supabase (auth, Postgres, storage) and ZXing for barcode scanning.
 
@@ -53,6 +54,14 @@ cp .env.example .env.local   # then fill in the values
 npm install
 npm run dev
 ```
+
+## Updating the database
+
+New features sometimes need a database change. Each one is a file in [`supabase/migrations/`](supabase/migrations). Run any you haven't run yet in the Supabase SQL editor, oldest first. They're safe to run twice.
+
+| File | Adds |
+|---|---|
+| `002_shares.sql` | Share links |
 
 ## Moving over from the claude.ai version
 

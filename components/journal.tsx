@@ -8,7 +8,7 @@ export type Note = { id: string; at: string; text: string; page?: string; photo?
 
 /** A reading journal on each book: dated notes with an optional page number and photo of the page. */
 export function Journal({ item }: { item: Item }) {
-  const { patch, uploadImage, publicUrl, removeFiles, openNew, toast } = useStore();
+  const { patch, uploadImage, publicUrl, removeFiles, openNew, toast, readOnly } = useStore();
   const notes = ((item.journal as Note[] | undefined) ?? []).slice().sort((a, b) => b.at.localeCompare(a.at));
   const [text, setText] = useState("");
   const [page, setPage] = useState("");
@@ -49,10 +49,12 @@ export function Journal({ item }: { item: Item }) {
     setArmed(null);
   };
 
+  if (readOnly && !notes.length) return null;
+
   return (
     <div className="journal">
       <div className="lbl-row mono" style={{ margin: 0 }}><span>Reading journal · {notes.length}</span></div>
-      <div className="composer">
+      {!readOnly && <div className="composer">
         <label htmlFor={`jn-${item.id}`} className="sr">New note</label>
         <textarea id={`jn-${item.id}`} value={text} onChange={(e) => setText(e.target.value)} placeholder="What are you thinking about this book?"
           onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); add(); } }} />
@@ -72,7 +74,7 @@ export function Journal({ item }: { item: Item }) {
           <input ref={fileRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { pickFile(e.target.files?.[0]); e.target.value = ""; }} />
           <button type="button" className="btn ink sm" style={{ marginLeft: "auto" }} disabled={busy || (!text.trim() && !file)} onClick={add}>{busy ? "Saving…" : "Add note"}</button>
         </div>
-      </div>
+      </div>}
       {notes.length === 0 ? <p className="hint" style={{ color: "var(--muted)", margin: 0 }}>Notes you write while reading appear here, newest first. Photograph a page to keep a passage.</p> : (
         <ol className="notes-list">
           {notes.map((n) => (
@@ -85,10 +87,10 @@ export function Journal({ item }: { item: Item }) {
                   <img src={publicUrl(n.photo)} alt={`Photo from page ${n.page ?? ""}`} loading="lazy" />
                 </a>
               )}
-              <div className="acts2">
+              {!readOnly && <div className="acts2">
                 {n.text && <button type="button" className="linkish" onClick={() => openNew("quote", { text: n.text, by: item.author, bookId: item.id, page: n.page })}>Save as quote</button>}
                 <button type="button" className={`linkish del${armed === n.id ? " armed" : ""}`} onClick={() => del(n)} onBlur={() => setArmed(null)}>{armed === n.id ? "Press again to delete" : "Delete"}</button>
-              </div>
+              </div>}
             </li>
           ))}
         </ol>

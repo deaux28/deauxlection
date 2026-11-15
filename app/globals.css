@@ -350,3 +350,24 @@ footer.foot a { color: var(--muted); }
 .spent { font-family: var(--f-mono); font-size: 12px; letter-spacing: .04em; color: var(--muted); }
 .sec-head .dek.spent { max-width: none; margin-top: -8px; }
 .login-form .form-err, .login-card .form-err, .lookup .form-err, .journal .form-err { grid-column: auto; }
+
+/* Read-only book status on shared links */
+.ro-status { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.pill-status { display: inline-flex; align-items: center; height: 30px; padding: 0 14px; border-radius: 999px; background: var(--c-book); color: var(--on-color); font-weight: 600; font-size: 14px; }
+.stars.ro span { font-size: 22px; color: var(--line); }
+.stars.ro span.on { color: var(--c-book); }
+
+/* Sharing */
+.sharing { display: grid; gap: 4px; }
+.share-new { display: grid; gap: 14px; padding: 16px; border-radius: 14px; background: var(--sunk); margin-top: 8px; }
+.share-new fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.share-new legend { color: var(--muted); margin-bottom: 8px; padding: 0; }
+.check { display: inline-flex; align-items: center; gap: 8px; font-weight: 550; }
+.check input { width: 18px; height: 18px; accent-color: var(--ink); }
+.check input:disabled + * { opacity: .5; }
+.share-list { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 0; }
+.share-list li { display: grid; gap: 8px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.share-list .top { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; justify-content: space-between; }
+.share-list .top .mono { color: var(--muted); }
+.share-list .link { width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 10px; font-family: var(--f-mono); font-size: 12.5px; color: var(--muted); }
+.share-list .acts2 { display: flex; flex-wrap: wrap; gap: 8px; }

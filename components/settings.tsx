@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Kind } from "@/lib/types";
 import { useStore } from "./store";
+import { Sharing } from "./sharing";
 
 type Incoming = { kind: Kind; data: Record<string, unknown>; created_at?: string };
 
@@ -55,6 +56,7 @@ export function Settings() {
     <section className="wrap page-head">
       <div className="sec-head"><h2>Settings</h2></div>
       <div className="settings">
+        <Sharing />
         <div>
           <h3>Record lookups</h3>
           <p style={{ color: "var(--ink)" }}>

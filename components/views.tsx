@@ -22,7 +22,8 @@ function sortItems(list: Item[], s: Sort) {
 }
 
 function Empty({ kind }: { kind: Kind }) {
-  const { openNew } = useStore();
+  const { openNew, readOnly } = useStore();
+  if (readOnly) return <div className="empty"><h3>Nothing here yet.</h3></div>;
   const copy = {
     vinyl: ["The crate is empty.", "Scan a record's barcode and its cover, track list and pressing details fill in for you."],
     book: ["Nothing on the shelf yet.", "Scan a book's ISBN barcode. Its spine is sized by page count, and a ribbon marks what you're reading."],
@@ -75,8 +76,12 @@ function Hero() {
 }
 
 export function Overview() {
-  const { items, ofKind, openNew, q } = useStore();
+  const { items, ofKind, openNew, q, readOnly, kinds, href, shareTitle } = useStore();
+  const shown = ORDER.filter((k) => kinds.includes(k));
   if (q.trim()) return <SearchResults />;
+  if (!items.length && readOnly) {
+    return <section className="wrap big-empty"><div className="eyebrow mono">Shared collection</div><h1>{shareTitle}</h1><p>Nothing has been added yet. Check back soon.</p></section>;
+  }
   if (!items.length) {
     return (
       <section className="wrap big-empty">
@@ -90,7 +95,7 @@ export function Overview() {
   const head = (k: Kind, title: string) => (
     <div className="sec-head" style={{ ["--k" as string]: KINDS[k].color }}>
       <h2>{title}<span className="count">{ofKind(k).length}</span></h2>
-      <div className="side"><Link className="see-all" href={KINDS[k].route}>See all <span aria-hidden="true">→</span></Link></div>
+      <div className="side"><Link className="see-all" href={href(KINDS[k].route)}>See all <span aria-hidden="true">→</span></Link></div>
     </div>
   );
   const recs = sortItems(ofKind("vinyl"), "recent").slice(0, 14);
@@ -98,20 +103,23 @@ export function Overview() {
   const quotes = sortItems(ofKind("quote"), "recent").slice(0, 6);
   return (
     <>
+      {readOnly && !ofKind("vinyl").length && (
+        <section className="wrap page-head"><div className="eyebrow mono">Shared collection</div><div className="sec-head" style={{ marginTop: 10 }}><h2>{shareTitle}</h2></div></section>
+      )}
       <Hero />
-      <div className="wrap"><div className="stats">{ORDER.map((k) => {
+      <div className="wrap"><div className="stats" style={{ gridTemplateColumns: `repeat(${shown.length}, minmax(0, 1fr))` }}>{shown.map((k) => {
         const n = ofKind(k).length;
-        return <Link key={k} className="stat" href={KINDS[k].route} style={{ ["--k" as string]: KINDS[k].color }}><span className="num">{n}</span><span className="lbl mono"><i />{n === 1 ? KINDS[k].one : KINDS[k].tab}</span></Link>;
+        return <Link key={k} className="stat" href={href(KINDS[k].route)} style={{ ["--k" as string]: KINDS[k].color }}><span className="num">{n}</span><span className="lbl mono"><i />{n === 1 ? KINDS[k].one : KINDS[k].tab}</span></Link>;
       })}</div></div>
-      <section className="wrap block">{head("vinyl", "The crate")}{recs.length ? <div className="crate">{recs.map((r) => <RecordCard key={r.id} item={r} />)}</div> : <Empty kind="vinyl" />}</section>
-      <section className="wrap block">{head("book", "The shelf")}{books.length ? <><div className="shelf">{books.map((b) => <Spine key={b.id} item={b} />)}</div><Legend /></> : <Empty kind="book" />}</section>
-      <section className="wrap block">{head("quote", "Marginalia")}{quotes.length ? <div className="quotes">{quotes.map((x) => <QuoteCard key={x.id} item={x} />)}</div> : <Empty kind="quote" />}</section>
+      {shown.includes("vinyl") && <section className="wrap block">{head("vinyl", "The crate")}{recs.length ? <div className="crate">{recs.map((r) => <RecordCard key={r.id} item={r} />)}</div> : <Empty kind="vinyl" />}</section>}
+      {shown.includes("book") && <section className="wrap block">{head("book", "The shelf")}{books.length ? <><div className="shelf">{books.map((b) => <Spine key={b.id} item={b} />)}</div><Legend /></> : <Empty kind="book" />}</section>}
+      {shown.includes("quote") && <section className="wrap block">{head("quote", "Marginalia")}{quotes.length ? <div className="quotes">{quotes.map((x) => <QuoteCard key={x.id} item={x} />)}</div> : <Empty kind="quote" />}</section>}
     </>
   );
 }
 
 export function Collection({ kind }: { kind: Kind }) {
-  const { ofKind, openNew, q } = useStore();
+  const { ofKind, openNew, q, readOnly } = useStore();
   const [sort, setSort] = useState<Sort>("recent");
   const [status, setStatus] = useState("");
   const [tag, setTag] = useState("");
@@ -146,7 +154,7 @@ export function Collection({ kind }: { kind: Kind }) {
       <div className="sec-head" style={{ ["--k" as string]: K.color }}>
         <h2>{K.tab}<span className="count">{all.length}</span></h2>
         <div className="side">
-          <button className="btn sm" onClick={() => openNew(kind)}>Add {K.one}</button>
+          {!readOnly && <button className="btn sm" onClick={() => openNew(kind)}>Add {K.one}</button>}
           <select className="sort" id={`sort-${kind}`} aria-label="Sort" value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
             <option value="recent">Recently added</option><option value="title">Title A–Z</option><option value="creator">{creatorLabel}</option>
             {kind !== "quote" && <><option value="acquired">Date acquired</option><option value="year-new">Newest release</option><option value="year-old">Oldest release</option></>}
@@ -180,9 +188,9 @@ function matches(it: Item, q: string, byId: (id: string) => Item | undefined) {
 }
 
 function SearchResults() {
-  const { q, ofKind, byId } = useStore();
+  const { q, ofKind, byId, kinds } = useStore();
   const needle = q.trim().toLowerCase();
-  const groups = ORDER.map((k) => [k, sortItems(ofKind(k).filter((i) => matches(i, needle, byId)), "recent")] as [Kind, Item[]]).filter(([, l]) => l.length);
+  const groups = ORDER.filter((k) => kinds.includes(k)).map((k) => [k, sortItems(ofKind(k).filter((i) => matches(i, needle, byId)), "recent")] as [Kind, Item[]]).filter(([, l]) => l.length);
   const total = groups.reduce((n, [, l]) => n + l.length, 0);
   return (
     <section className="wrap page-head">

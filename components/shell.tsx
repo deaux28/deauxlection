@@ -14,7 +14,7 @@ const ICONS: Record<Kind, React.ReactNode> = {
 const KEY: Record<Kind, string> = { vinyl: "R", book: "B", quote: "Q" };
 
 export function Shell({ children }: { children: React.ReactNode }) {
-  const { q, setQ, ofKind, openNew, sheet, toastMsg, items } = useStore();
+  const { q, setQ, ofKind, openNew, sheet, toastMsg, readOnly, kinds, href, shareTitle } = useStore();
   const path = usePathname();
   const [menu, setMenu] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -29,7 +29,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       if (e.key === "Escape" && menu) { setMenu(false); return; }
       if (typing || sheet || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === "/") { e.preventDefault(); setSearchOpen(true); setTimeout(() => input.current?.focus(), 0); }
-      else if (e.key === "n") { e.preventDefault(); setMenu(true); }
+      else if (e.key === "n" && !readOnly) { e.preventDefault(); setMenu(true); }
       else if (menu) {
         const k = (Object.keys(KEY) as Kind[]).find((x) => KEY[x].toLowerCase() === e.key.toLowerCase());
         if (k) { e.preventDefault(); setMenu(false); openNew(k); }
@@ -39,15 +39,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
     document.addEventListener("keydown", onKey);
     document.addEventListener("click", onClick);
     return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("click", onClick); };
-  }, [menu, sheet, openNew]);
+  }, [menu, sheet, openNew, readOnly]);
 
-  const views: [string, string, number | null][] = [["/", "Overview", null], ...ORDER.map((k) => [KINDS[k].route, KINDS[k].tab, ofKind(k).length] as [string, string, number])];
+  const shown = ORDER.filter((k) => kinds.includes(k));
+  const views: [string, string, number | null][] = [[href("/"), "Overview", null], ...shown.map((k) => [href(KINDS[k].route), KINDS[k].tab, ofKind(k).length] as [string, string, number])];
 
   return (
     <>
       <header className="bar">
         <div className="wrap">
-          <Link className="mark" href="/" aria-label="Deauxlection, overview"><span className="glyph" /><span>Deauxlection</span></Link>
+          <Link className="mark" href={href("/")} aria-label={`${shareTitle ?? "Deauxlection"}, overview`}><span className="glyph" /><span>{shareTitle ?? "Deauxlection"}</span></Link>
           <nav className="views" aria-label="Collections">
             {views.map(([href, label, n]) => (
               <Link key={href} href={href} className="view-link" aria-current={path === href && !q ? "page" : undefined}>{label}{n !== null && <sup>{n}</sup>}</Link>
@@ -62,7 +63,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <button className="btn icon-only search-toggle" onClick={() => { setSearchOpen((s) => !s); setTimeout(() => input.current?.focus(), 0); }} aria-label="Search">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.6-3.6" /></svg>
             </button>
-            <div className="add-wrap" ref={wrap}>
+            {!readOnly && <div className="add-wrap" ref={wrap}>
               <button className="btn ink" aria-haspopup="true" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>Add
               </button>
@@ -77,15 +78,18 @@ export function Shell({ children }: { children: React.ReactNode }) {
                   <Link role="menuitem" href="/settings" onClick={() => setMenu(false)}><span className="sw plain">⚙</span>Import, export, sign out<span /></Link>
                 </div>
               )}
-            </div>
+            </div>}
           </div>
         </div>
       </header>
+      {readOnly && (
+        <div className="wrap"><div className="notice"><span><b>A shared collection.</b> You can browse everything here. Nothing can be changed.</span></div></div>
+      )}
       <main>{children}</main>
       <footer className="wrap foot mono">
-        <span>Deauxlection</span>
+        <span>{readOnly ? "Shared with Deauxlection" : "Deauxlection"}</span>
         <span>Record data from <a href="https://www.discogs.com" target="_blank" rel="noreferrer">Discogs</a> and <a href="https://musicbrainz.org" target="_blank" rel="noreferrer">MusicBrainz</a> · Books from <a href="https://openlibrary.org" target="_blank" rel="noreferrer">Open Library</a></span>
-        <span>{ORDER.map((k) => `${ofKind(k).length} ${KINDS[k].tab.toLowerCase()}`).join(" · ")}{items.length ? "" : ""}</span>
+        <span>{shown.map((k) => `${ofKind(k).length} ${KINDS[k].tab.toLowerCase()}`).join(" · ")}</span>
       </footer>
       <div className={`toast${toastMsg ? " show" : ""}`} role="status" aria-live="polite">{toastMsg}</div>
     </>

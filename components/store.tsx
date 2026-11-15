@@ -12,7 +12,17 @@ export type SheetState =
 
 export type CoverSource = { url: string } | { file: File } | null;
 
+export type ShareMode = { readOnly: true; base: string; title: string; kinds: Kind[] };
+
 type Store = {
+  /** True on a shared link: nothing can be changed. */
+  readOnly: boolean;
+  /** Path prefix for in-app links: "" in your app, "/s/<token>" on a shared link. */
+  base: string;
+  /** Kinds this view shows. */
+  kinds: Kind[];
+  shareTitle: string | null;
+  href: (route: string) => string;
   items: Item[];
   cats: Record<string, string>;
   byId: (id: string) => Item | undefined;
@@ -57,7 +67,7 @@ function toItem(row: ItemRow): Item {
 const clean = (o: Record<string, unknown>) =>
   Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== ""));
 
-export function StoreProvider({ initial, children }: { initial: ItemRow[]; children: React.ReactNode }) {
+export function StoreProvider({ initial, share, children }: { initial: ItemRow[]; share?: ShareMode; children: React.ReactNode }) {
   const [rows, setRows] = useState<ItemRow[]>(initial);
   const [q, setQ] = useState("");
   const [sheet, setSheet] = useState<SheetState>(null);
@@ -164,13 +174,19 @@ export function StoreProvider({ initial, children }: { initial: ItemRow[]; child
   const publicUrl = useCallback((path: string) => supabaseBrowser().storage.from(COVERS_BUCKET).getPublicUrl(path).data.publicUrl, []);
   const removeFiles = useCallback(async (paths: string[]) => { if (paths.length) await supabaseBrowser().storage.from(COVERS_BUCKET).remove(paths); }, []);
 
+  const base = share?.base ?? "";
   const value: Store = {
+    readOnly: !!share,
+    base,
+    kinds: share?.kinds ?? ORDER,
+    shareTitle: share?.title ?? null,
+    href: (route: string) => (route === "/" ? base || "/" : `${base}${route}`),
     items, cats, q, setQ, sheet, toast, toastMsg,
     byId: (id) => items.find((i) => i.id === id),
     ofKind: (k) => items.filter((i) => i.kind === k),
     openItem: (id) => setSheet({ mode: "view", id }),
-    openNew: (kind, prefill) => setSheet({ mode: "edit", kind, prefill }),
-    editItem: (id) => { const it = items.find((i) => i.id === id); if (it) setSheet({ mode: "edit", id, kind: it.kind }); },
+    openNew: (kind, prefill) => { if (!share) setSheet({ mode: "edit", kind, prefill }); },
+    editItem: (id) => { const it = items.find((i) => i.id === id); if (it && !share) setSheet({ mode: "edit", id, kind: it.kind }); },
     closeSheet: () => setSheet(null),
     save, patch, remove, importItems, uploadImage, publicUrl, removeFiles,
   };
