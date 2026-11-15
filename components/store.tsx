@@ -38,6 +38,7 @@ type Store = {
   patch: (id: string, fields: Record<string, unknown>) => Promise<void>;
   remove: (id: string) => Promise<void>;
   uploadImage: (file: File, prefix: string) => Promise<string>;
+  uploadBlob: (blob: Blob, prefix: string, ext: string) => Promise<string>;
   publicUrl: (path: string) => string;
   removeFiles: (paths: string[]) => Promise<void>;
   importItems: (rows: { kind: Kind; data: Record<string, unknown>; created_at?: string }[]) => Promise<number>;
@@ -145,8 +146,8 @@ export function StoreProvider({ initial, share, children }: { initial: ItemRow[]
     const row = rows.find((r) => r.id === id);
     const { error } = await sb.from("items").delete().eq("id", id);
     if (error) throw new Error(error.message);
-    const journal = (row?.data.journal as { photo?: string }[] | undefined) ?? [];
-    const files = [row?.cover_path, ...journal.map((n) => n.photo)].filter((x): x is string => !!x);
+    const journal = (row?.data.journal as { photo?: string; audio?: string }[] | undefined) ?? [];
+    const files = [row?.cover_path, ...journal.flatMap((n) => [n.photo, n.audio])].filter((x): x is string => !!x);
     if (files.length) await sb.storage.from(COVERS_BUCKET).remove(files);
     setRows((rs) => rs.filter((r) => r.id !== id));
   }, [rows]);
@@ -171,6 +172,15 @@ export function StoreProvider({ initial, share, children }: { initial: ItemRow[]
     if (up.error) throw new Error(up.error.message);
     return path;
   }, []);
+  const uploadBlob: Store["uploadBlob"] = useCallback(async (blob, prefix, ext) => {
+    const sb = supabaseBrowser();
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) throw new Error("Sign in again to upload.");
+    const path = `${user.id}/${prefix}-${Date.now()}.${ext.replace(/[^a-z0-9]/gi, "")}`;
+    const up = await sb.storage.from(COVERS_BUCKET).upload(path, blob, { contentType: blob.type || "application/octet-stream" });
+    if (up.error) throw new Error(up.error.message);
+    return path;
+  }, []);
   const publicUrl = useCallback((path: string) => supabaseBrowser().storage.from(COVERS_BUCKET).getPublicUrl(path).data.publicUrl, []);
   const removeFiles = useCallback(async (paths: string[]) => { if (paths.length) await supabaseBrowser().storage.from(COVERS_BUCKET).remove(paths); }, []);
 
@@ -188,7 +198,7 @@ export function StoreProvider({ initial, share, children }: { initial: ItemRow[]
     openNew: (kind, prefill) => { if (!share) setSheet({ mode: "edit", kind, prefill }); },
     editItem: (id) => { const it = items.find((i) => i.id === id); if (it && !share) setSheet({ mode: "edit", id, kind: it.kind }); },
     closeSheet: () => setSheet(null),
-    save, patch, remove, importItems, uploadImage, publicUrl, removeFiles,
+    save, patch, remove, importItems, uploadImage, uploadBlob, publicUrl, removeFiles,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
