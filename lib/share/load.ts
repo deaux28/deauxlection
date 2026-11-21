@@ -13,5 +13,7 @@ export const loadShare = cache(async (token: string): Promise<Shared | null> => 
   const { data, error } = await sb.rpc("shared_collection", { p_token: token });
   if (error) throw new Error(error.message);
   if (!data) return null;
-  return data as Shared;
+  const shared = data as Shared;
+  // Wishlist records stay private. Migration 003 also drops them in the database; this covers projects that haven't run it.
+  return { ...shared, items: shared.items.filter((i) => i.data?.wish !== true) };
 });

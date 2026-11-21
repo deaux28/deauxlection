@@ -59,7 +59,7 @@ create policy "own shares" on public.shares for all to authenticated
   using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- The only way a visitor reads anything: give a valid token, get back that owner's items of the shared kinds.
--- Prices are removed unless the link includes them. No other table or row is reachable.
+-- Prices are removed unless the link includes them. Wishlist records are left out. No other table or row is reachable.
 create or replace function public.shared_collection(p_token text)
 returns json
 language sql
@@ -81,6 +81,7 @@ as $$
       ) order by i.created_at desc)
       from public.items i
       where i.user_id = s.user_id and i.kind = any (s.kinds)
+        and coalesce(i.data->>'wish', 'false') <> 'true'  -- wishlist records aren't shared
     ), '[]'::json)
   )
   from public.shares s

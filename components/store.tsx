@@ -4,10 +4,11 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import { COVERS_BUCKET } from "@/lib/supabase/env";
 import { KINDS, ORDER } from "@/lib/kinds";
 import type { Item, ItemRow, Kind, Track } from "@/lib/types";
+import { today } from "@/lib/format";
 
 export type SheetState =
   | { mode: "view"; id: string }
-  | { mode: "edit"; id?: string; kind: Kind; prefill?: Record<string, unknown> }
+  | { mode: "edit"; id?: string; kind: Kind; prefill?: Record<string, unknown>; wish?: boolean }
   | null;
 
 export type CoverSource = { url: string } | { file: File } | null;
@@ -26,17 +27,24 @@ type Store = {
   items: Item[];
   cats: Record<string, string>;
   byId: (id: string) => Item | undefined;
+  /** Your collection of a kind. Wishlist records are left out. */
   ofKind: (k: Kind) => Item[];
+  /** Records you want but don't own yet. */
+  wishlist: Item[];
   q: string;
   setQ: (q: string) => void;
   sheet: SheetState;
   openItem: (id: string) => void;
   openNew: (kind: Kind, prefill?: Record<string, unknown>) => void;
+  /** Opens the form for a new wishlist record. */
+  openWish: (prefill?: Record<string, unknown>) => void;
   editItem: (id: string) => void;
   closeSheet: () => void;
   save: (args: { id?: string; kind: Kind; fields: Record<string, unknown>; tracks?: Track[]; cover?: CoverSource }) => Promise<string>;
   patch: (id: string, fields: Record<string, unknown>) => Promise<void>;
   remove: (id: string) => Promise<void>;
+  /** Moves a wishlist record into the collection, dated today. */
+  moveToCollection: (id: string) => Promise<void>;
   uploadImage: (file: File, prefix: string) => Promise<string>;
   uploadBlob: (blob: Blob, prefix: string, ext: string) => Promise<string>;
   publicUrl: (path: string) => string;
@@ -47,6 +55,9 @@ type Store = {
 };
 
 const Ctx = createContext<Store | null>(null);
+/** True for a record on the wishlist rather than in the collection. */
+export const isWish = (it: { kind: Kind; wish?: unknown; [k: string]: unknown }) => it.kind === "vinyl" && it.wish === true;
+
 export const useStore = () => {
   const s = useContext(Ctx);
   if (!s) throw new Error("useStore outside provider");
@@ -78,10 +89,13 @@ export function StoreProvider({ initial, share, children }: { initial: ItemRow[]
   const items = useMemo(() => rows.map(toItem), [rows]);
   const cats = useMemo(() => {
     const map: Record<string, string> = {};
-    for (const k of ORDER) items.filter((i) => i.kind === k).sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-      .forEach((it, n) => { map[it.id] = `${KINDS[k].prefix}-${String(n + 1).padStart(3, "0")}`; });
+    const number = (list: Item[], prefix: string) => list.slice().sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .forEach((it, n) => { map[it.id] = `${prefix}-${String(n + 1).padStart(3, "0")}`; });
+    for (const k of ORDER) number(items.filter((i) => i.kind === k && !isWish(i)), KINDS[k].prefix);
+    number(items.filter(isWish), "WL");
     return map;
   }, [items]);
+  const wishlist = useMemo(() => items.filter(isWish), [items]);
 
   const toast = useCallback((m: string) => {
     setToast(m);
@@ -152,6 +166,18 @@ export function StoreProvider({ initial, share, children }: { initial: ItemRow[]
     setRows((rs) => rs.filter((r) => r.id !== id));
   }, [rows]);
 
+  const moveToCollection: Store["moveToCollection"] = useCallback(async (id) => {
+    const row = rows.find((r) => r.id === id);
+    if (!row) return;
+    const { wish: _w, ...rest } = row.data;
+    const data = clean({ ...rest, acquired: rest.acquired || today() });
+    // Re-dated so it shows as just added and takes the next catalog number.
+    const now = new Date().toISOString();
+    const { data: saved, error } = await supabaseBrowser().from("items").update({ data, created_at: now, updated_at: now }).eq("id", id).select("*").single();
+    if (error) throw new Error(error.message);
+    upsertRow(saved as ItemRow);
+  }, [rows]);
+
   const importItems: Store["importItems"] = useCallback(async (list) => {
     const sb = supabaseBrowser();
     const valid = list.filter((r) => ["vinyl", "book", "quote"].includes(r.kind) && r.data && typeof r.data === "object");
@@ -193,12 +219,14 @@ export function StoreProvider({ initial, share, children }: { initial: ItemRow[]
     href: (route: string) => (route === "/" ? base || "/" : `${base}${route}`),
     items, cats, q, setQ, sheet, toast, toastMsg,
     byId: (id) => items.find((i) => i.id === id),
-    ofKind: (k) => items.filter((i) => i.kind === k),
+    ofKind: (k) => items.filter((i) => i.kind === k && !isWish(i)),
+    wishlist,
     openItem: (id) => setSheet({ mode: "view", id }),
     openNew: (kind, prefill) => { if (!share) setSheet({ mode: "edit", kind, prefill }); },
-    editItem: (id) => { const it = items.find((i) => i.id === id); if (it && !share) setSheet({ mode: "edit", id, kind: it.kind }); },
+    openWish: (prefill) => { if (!share) setSheet({ mode: "edit", kind: "vinyl", prefill, wish: true }); },
+    editItem: (id) => { const it = items.find((i) => i.id === id); if (it && !share) setSheet({ mode: "edit", id, kind: it.kind, wish: isWish(it) }); },
     closeSheet: () => setSheet(null),
-    save, patch, remove, importItems, uploadImage, uploadBlob, publicUrl, removeFiles,
+    save, patch, remove, moveToCollection, importItems, uploadImage, uploadBlob, publicUrl, removeFiles,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

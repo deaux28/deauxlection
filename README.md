@@ -6,6 +6,7 @@ A personal catalog for vinyl records, books and quotes.
 - **No barcode?** Search by the catalog number on the spine or label (e.g. `CS 8163`), or by artist and album.
 - **Covers are copied into your own storage**, so they keep working if the source link changes. You can also add your own photo.
 - Records get a Goldmine condition grade for the record and the sleeve, a track list grouped by side, the date you got it and, optionally, what you paid. The Records page totals what you've spent on the records that have a price.
+- **Wishlist**: add records you're after the same way (barcode, catalog number or search). They live on their own Wishlist page, out of your collection and totals. Open one and choose **Move to collection** when you get it; it's dated today and joins your records. Wishlist records are never shown on share links.
 - Books get reading status, a rating, the date you got them, spines sized by page count, and a **reading journal**: dated notes with a page number, an optional photo of the page, and voice. **Dictate** writes out what you say; **Voice note** saves a recording (up to 5 minutes) and writes it out where the browser allows; **Listen** reads any note aloud. Any note can be turned into a quote.
 - Quotes can be linked to a book on your shelf.
 - **Share links** (Settings): a read-only link to your records, books and/or quotes. Visitors can browse and search but can't change anything. Book pages show your notes and reading journal. Prices paid are hidden unless you include them. Switch a link off at any time.
@@ -62,6 +63,7 @@ New features sometimes need a database change. Each one is a file in [`supabase/
 | File | Adds |
 |---|---|
 | `002_shares.sql` | Share links |
+| `003_wishlist.sql` | Keeps wishlist records off share links |
 
 ## Moving over from the claude.ai version
 
