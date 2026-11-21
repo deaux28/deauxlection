@@ -7,9 +7,11 @@ import { BookCover, Cover, Disc, Tracklist } from "./art";
 import { Journal } from "./journal";
 import { currencySymbol, day, money, today } from "@/lib/format";
 import { Lookup } from "./lookup";
-import { useStore, type CoverSource } from "./store";
+import { isWish, useStore, type CoverSource } from "./store";
 
 const META = new Set(["id", "kind", "createdAt", "updatedAt", "coverPath", "coverUrl", "tracks"]);
+/** Fields about a copy you own, left off wishlist records. */
+const OWNED_ONLY = new Set(["acquired", "price", "media", "sleeve"]);
 
 export function Sheet() {
   const { sheet, closeSheet, byId } = useStore();
@@ -29,7 +31,7 @@ export function Sheet() {
   return (
     <dialog ref={ref} className="sheet" onClose={closeSheet} onClick={(e) => { if (e.target === ref.current) closeSheet(); }}
       style={kind ? { ["--k" as string]: KINDS[kind].color } : undefined} aria-label="Item details">
-      {sheet && kind && (sheet.mode === "view" && item ? <ViewPane item={item} /> : sheet.mode === "edit" ? <EditPane key={sheet.id ?? "new"} kind={kind} item={item} prefill={sheet.prefill} /> : null)}
+      {sheet && kind && (sheet.mode === "view" && item ? <ViewPane item={item} /> : sheet.mode === "edit" ? <EditPane key={sheet.id ?? (sheet.wish ? "new-wish" : "new")} kind={kind} item={item} prefill={sheet.prefill} wish={!!sheet.wish} /> : null)}
     </dialog>
   );
 }
@@ -65,9 +67,18 @@ function Gauge({ label, grade }: { label: string; grade?: string }) {
 }
 
 function ViewPane({ item }: { item: Item }) {
-  const { cats, editItem, remove, toast, closeSheet, patch, ofKind, openItem, openNew, byId, readOnly, kinds } = useStore();
+  const { cats, editItem, remove, toast, closeSheet, patch, ofKind, openItem, openNew, byId, readOnly, kinds, moveToCollection } = useStore();
   const [armed, setArmed] = useState(false);
+  const [moving, setMoving] = useState(false);
   const K = KINDS[item.kind];
+  const wish = isWish(item);
+
+  const move = async () => {
+    setMoving(true);
+    try { await moveToCollection(item.id); toast("Moved to your records"); }
+    catch { toast("That didn't move. Check your connection."); }
+    setMoving(false);
+  };
 
   const del = async () => {
     if (!armed) { setArmed(true); return; }
@@ -93,8 +104,9 @@ function ViewPane({ item }: { item: Item }) {
             <button className="btn sm" onClick={() => editItem(item.id)}>Find tracks and cover</button>
           </div>
         )}
-        <Facts pairs={[["Label", item.label], ["Catalog no.", item.catno], ["Year", item.year], ["Country", item.country], ["Genre", item.genre], ["Format", item.format], ["Size · speed", [item.size, item.speed].filter(Boolean).join(" · ")], ["Pressing", item.pressing], ["Barcode", item.barcode], ["Acquired", item.acquired ? day(item.acquired) : ""], ["Price paid", money(item.price)]]} />
-        <div className="gauges"><Gauge label="Record" grade={str(item.media) || undefined} /><Gauge label="Sleeve" grade={str(item.sleeve) || undefined} /></div>
+        <Facts pairs={[["Label", item.label], ["Catalog no.", item.catno], ["Year", item.year], ["Country", item.country], ["Genre", item.genre], ["Format", item.format], ["Size · speed", [item.size, item.speed].filter(Boolean).join(" · ")], ["Pressing", item.pressing], ["Barcode", item.barcode], ...(wish ? [] : [["Acquired", item.acquired ? day(item.acquired) : ""], ["Price paid", money(item.price)]] as [string, unknown][])]} />
+        {wish ? <p className="hint" style={{ margin: 0 }}>On your wishlist since {day(item.createdAt.slice(0, 10))}. When you get it, move it to your collection; condition and price paid can be added then.</p>
+          : <div className="gauges"><Gauge label="Record" grade={str(item.media) || undefined} /><Gauge label="Sleeve" grade={str(item.sleeve) || undefined} /></div>}
         {item.notes ? <p className="notes">{str(item.notes)}</p> : null}
       </>
     );
@@ -153,13 +165,16 @@ function ViewPane({ item }: { item: Item }) {
 
   return (
     <div className="sheet-in">
-      <Top label={K.one} />
+      <Top label={wish ? "wishlist" : K.one} />
       <div className="sheet-body">{body}</div>
       {readOnly ? (
         <div className="sheet-foot"><div className="r"><button type="button" className="btn" onClick={closeSheet}>Close</button></div></div>
       ) : <div className="sheet-foot">
         <button type="button" className={`btn danger${armed ? " armed" : ""}`} onClick={del} onBlur={() => setArmed(false)}>{armed ? "Press again to delete" : "Delete"}</button>
-        <div className="r"><button type="button" className="btn ink" onClick={() => editItem(item.id)}>Edit</button></div>
+        <div className="r">
+          <button type="button" className={`btn${wish ? "" : " ink"}`} onClick={() => editItem(item.id)}>Edit</button>
+          {wish && <button type="button" className="btn ink" onClick={move} disabled={moving}>{moving ? "Moving…" : "Move to collection"}</button>}
+        </div>
       </div>}
     </div>
   );
@@ -226,9 +241,11 @@ function TrackEditor({ tracks, setTracks }: { tracks: Track[]; setTracks: (t: Tr
   );
 }
 
-function EditPane({ kind, item, prefill }: { kind: Kind; item?: Item; prefill?: Record<string, unknown> }) {
+function EditPane({ kind, item, prefill, wish }: { kind: Kind; item?: Item; prefill?: Record<string, unknown>; wish: boolean }) {
   const { save, toast, openItem, closeSheet } = useStore();
-  const K = KINDS[kind];
+  const K0 = KINDS[kind];
+  const K = wish ? { ...K0, fields: K0.fields.filter((f) => !OWNED_ONLY.has(f.k)) } : K0;
+  const dest = wish ? "wishlist" : K.tab.toLowerCase();
   const init = useMemo(() => {
     const src: Record<string, unknown> = item ?? prefill ?? {};
     return Object.fromEntries(Object.entries(src).filter(([k, v]) => !META.has(k) && (typeof v === "string" || typeof v === "number")).map(([k, v]) => [k, str(v)]));
@@ -268,13 +285,14 @@ function EditPane({ kind, item, prefill }: { kind: Kind; item?: Item; prefill?: 
     if (item) for (const [k, v] of Object.entries(item)) {
       if (!META.has(k) && !K.fields.some((f) => f.k === k) && !(k in fields) && v !== undefined && v !== null && typeof v !== "string") fields[k] = v;
     }
+    if (wish && !item) fields.wish = true;
     const missing = K.fields.filter((f) => f.req && !fields[f.k]).map((f) => f.label.toLowerCase());
     if (missing.length) { setErr(`Add the ${missing.join(" and ")} to save.`); return; }
     const cleanTracks = tracks.filter((t) => t.title.trim()).map((t) => ({ position: t.position.trim(), title: t.title.trim(), ...(t.duration?.trim() ? { duration: t.duration.trim() } : {}) }));
     setSaving(true); setErr(null);
     try {
       const id = await save({ id: item?.id, kind, fields, tracks: kind === "vinyl" ? cleanTracks : undefined, cover });
-      toast(item ? "Saved" : `Added to ${K.tab.toLowerCase()}`);
+      toast(item ? "Saved" : `Added to ${dest}`);
       openItem(id);
     } catch (e2) {
       setErr(`That didn't save: ${(e2 as Error).message}`);
@@ -288,7 +306,7 @@ function EditPane({ kind, item, prefill }: { kind: Kind; item?: Item; prefill?: 
 
   return (
     <form className="sheet-in" onSubmit={submit} noValidate>
-      <Top label={item ? `Edit ${K.one}` : `New ${K.one}`} />
+      <Top label={`${item ? "Edit" : "New"} ${wish ? "wishlist record" : K.one}`} />
       <div className="sheet-body">
         <div className="form">
           {kind !== "quote" && <Lookup kind={kind} initialQuery={lookupQuery} onPick={onPick} />}
@@ -315,7 +333,7 @@ function EditPane({ kind, item, prefill }: { kind: Kind; item?: Item; prefill?: 
       <div className="sheet-foot">
         <div className="r">
           <button type="button" className="btn" onClick={() => (item ? openItem(item.id) : closeSheet())}>Cancel</button>
-          <button type="submit" className="btn ink" disabled={saving}>{saving ? "Saving…" : item ? "Save changes" : `Add to ${K.tab.toLowerCase()}`}</button>
+          <button type="submit" className="btn ink" disabled={saving}>{saving ? "Saving…" : item ? "Save changes" : `Add to ${dest}`}</button>
         </div>
       </div>
     </form>

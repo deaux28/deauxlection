@@ -178,6 +178,30 @@ export function Collection({ kind }: { kind: Kind }) {
   );
 }
 
+export function Wishlist() {
+  const { wishlist, openWish, q } = useStore();
+  const [sort, setSort] = useState<Sort>("recent");
+  if (q.trim()) return <SearchResults />;
+  const list = sortItems(wishlist, sort);
+  return (
+    <section className="wrap page-head">
+      <div className="sec-head" style={{ ["--k" as string]: KINDS.vinyl.color }}>
+        <h2>Wishlist<span className="count">{wishlist.length}</span></h2>
+        <div className="side">
+          <button className="btn sm" onClick={() => openWish()}>Add to wishlist</button>
+          <select className="sort" id="sort-wish" aria-label="Sort" value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
+            <option value="recent">Recently added</option><option value="title">Title A–Z</option><option value="creator">Artist A–Z</option>
+            <option value="year-new">Newest release</option><option value="year-old">Oldest release</option>
+          </select>
+        </div>
+        <p className="dek">Records you&apos;re after. Open one and choose Move to collection when you get it.</p>
+      </div>
+      {list.length ? <div className="records">{list.map((r) => <RecordCard key={r.id} item={r} />)}</div>
+        : <div className="empty"><h3>Nothing on the wishlist.</h3><p>Scan a barcode or search a catalog number, the same way you add a record, to keep track of what you&apos;re looking for.</p><button className="btn sm" onClick={() => openWish()}>Add to wishlist</button></div>}
+    </section>
+  );
+}
+
 function matches(it: Item, q: string, byId: (id: string) => Item | undefined) {
   const hay = Object.entries(it).filter(([k]) => !["id", "createdAt", "updatedAt", "coverPath", "coverUrl", "kind"].includes(k))
     .map(([k, v]) => (k === "tracks" && Array.isArray(v) ? v.map((t: { title: string }) => t.title).join(" ")
@@ -188,17 +212,19 @@ function matches(it: Item, q: string, byId: (id: string) => Item | undefined) {
 }
 
 function SearchResults() {
-  const { q, ofKind, byId, kinds } = useStore();
+  const { q, ofKind, byId, kinds, wishlist } = useStore();
   const needle = q.trim().toLowerCase();
-  const groups = ORDER.filter((k) => kinds.includes(k)).map((k) => [k, sortItems(ofKind(k).filter((i) => matches(i, needle, byId)), "recent")] as [Kind, Item[]]).filter(([, l]) => l.length);
-  const total = groups.reduce((n, [, l]) => n + l.length, 0);
+  const groups = ORDER.filter((k) => kinds.includes(k)).map((k) => [k, KINDS[k].tab, sortItems(ofKind(k).filter((i) => matches(i, needle, byId)), "recent")] as [Kind, string, Item[]]);
+  groups.push(["vinyl", "Wishlist", sortItems(wishlist.filter((i) => matches(i, needle, byId)), "recent")]);
+  const found = groups.filter(([, , l]) => l.length);
+  const total = found.reduce((n, [, , l]) => n + l.length, 0);
   return (
     <section className="wrap page-head">
       <div className="sec-head"><h2 style={{ fontSize: "clamp(30px,5vw,60px)" }}>“{q.trim()}”<span className="count" style={{ color: "var(--muted)" }}>{total} found</span></h2></div>
       {!total ? <div className="empty"><h3>No matches.</h3><p>Search covers titles, artists, authors, labels, track names, notes, tags and quote text.</p></div>
-        : groups.map(([k, l]) => (
-          <div key={k} style={{ marginTop: 34, ["--k" as string]: KINDS[k].color }}>
-            <div className="mono" style={{ color: "var(--k)", marginBottom: 16 }}>{KINDS[k].tab} · {l.length}</div>
+        : found.map(([k, label, l]) => (
+          <div key={label} style={{ marginTop: 34, ["--k" as string]: KINDS[k].color }}>
+            <div className="mono" style={{ color: "var(--k)", marginBottom: 16 }}>{label} · {l.length}</div>
             {k === "vinyl" ? <div className="records">{l.map((r) => <RecordCard key={r.id} item={r} />)}</div>
               : k === "book" ? <div className="shelf">{l.map((b) => <Spine key={b.id} item={b} />)}</div>
               : <div className="quotes">{l.map((x) => <QuoteCard key={x.id} item={x} />)}</div>}

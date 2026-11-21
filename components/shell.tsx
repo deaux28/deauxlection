@@ -11,10 +11,11 @@ const ICONS: Record<Kind, React.ReactNode> = {
   book: <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4v16H5zM10 4h4v16h-4zM15.5 5l3.6-.9 3 15.5-3.6.9z" fill="currentColor" /></svg>,
   quote: <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18c0-6 2-10 6-11v3c-2 1-2.6 3-2.6 4H10v4zm9 0c0-6 2-10 6-11v3c-2 1-2.6 3-2.6 4H19v4z" fill="currentColor" /></svg>,
 };
+const WISH_ICON = <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /></svg>;
 const KEY: Record<Kind, string> = { vinyl: "R", book: "B", quote: "Q" };
 
 export function Shell({ children }: { children: React.ReactNode }) {
-  const { q, setQ, ofKind, openNew, sheet, toastMsg, readOnly, kinds, href, shareTitle } = useStore();
+  const { q, setQ, ofKind, openNew, openWish, wishlist, sheet, toastMsg, readOnly, kinds, href, shareTitle } = useStore();
   const path = usePathname();
   const [menu, setMenu] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -33,16 +34,18 @@ export function Shell({ children }: { children: React.ReactNode }) {
       else if (menu) {
         const k = (Object.keys(KEY) as Kind[]).find((x) => KEY[x].toLowerCase() === e.key.toLowerCase());
         if (k) { e.preventDefault(); setMenu(false); openNew(k); }
+        else if (e.key.toLowerCase() === "w") { e.preventDefault(); setMenu(false); openWish(); }
       }
     };
     const onClick = (e: MouseEvent) => { if (!wrap.current?.contains(e.target as Node)) setMenu(false); };
     document.addEventListener("keydown", onKey);
     document.addEventListener("click", onClick);
     return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("click", onClick); };
-  }, [menu, sheet, openNew, readOnly]);
+  }, [menu, sheet, openNew, openWish, readOnly]);
 
   const shown = ORDER.filter((k) => kinds.includes(k));
-  const views: [string, string, number | null][] = [[href("/"), "Overview", null], ...shown.map((k) => [href(KINDS[k].route), KINDS[k].tab, ofKind(k).length] as [string, string, number])];
+  const views: [string, string, number | null][] = [[href("/"), "Overview", null], ...shown.map((k) => [href(KINDS[k].route), KINDS[k].tab, ofKind(k).length] as [string, string, number]),
+    ...(readOnly ? [] : [["/wishlist", "Wishlist", wishlist.length] as [string, string, number]])];
 
   return (
     <>
@@ -74,6 +77,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
                       <span className="sw">{ICONS[k]}</span>{KINDS[k].one[0].toUpperCase() + KINDS[k].one.slice(1)}<kbd>{KEY[k]}</kbd>
                     </button>
                   ))}
+                  <button role="menuitem" style={{ ["--k" as string]: KINDS.vinyl.color }} onClick={() => { setMenu(false); openWish(); }}>
+                    <span className="sw">{WISH_ICON}</span>Wishlist record<kbd>W</kbd>
+                  </button>
                   <hr />
                   <Link role="menuitem" href="/settings" onClick={() => setMenu(false)}><span className="sw plain">⚙</span>Import, export, sign out<span /></Link>
                 </div>
